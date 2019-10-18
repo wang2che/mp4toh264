@@ -25,7 +25,7 @@ camera -> openRTSP -> RTP file -> -RTP head -> +MP4 head -> .MP4 file
 
 黄色金属摄像头h264头数据：
 00 00 xx xx 41 E1/E0
-
+....
 ****************************************************/
 
 #include <stdio.h>
@@ -33,10 +33,9 @@ camera -> openRTSP -> RTP file -> -RTP head -> +MP4 head -> .MP4 file
 #include <string.h>
 #include <sys/stat.h>
 
-#define MP4_FILE		"bad-4m.mp4"
-#define H264_FILE		"bad-4m.h264"
-
 #define PARA_NUM		3
+#define DEBUG_ON		0
+#define DEBUG_LEN		4096
 
 int main(int argc, char **argv)
 {
@@ -45,6 +44,9 @@ int main(int argc, char **argv)
 	int date_len=0;
 	FILE * pFile;
 	FILE * pFile_out;
+	struct stat statbuf;
+	int size = 0;
+	int size_h264 = 0;
 	unsigned char *buffer = NULL;
 	unsigned char *p_buffer = NULL;
 
@@ -52,8 +54,6 @@ int main(int argc, char **argv)
 		printf("please input 2 parameters! ps: .exe in.mp4 out.h264\n");
 		return -1;
 	}
-	printf("eason %d,%s,%s\n",argc, argv[1], argv[2]);
-
 
 	if((pFile = fopen(argv[1], "r"))==NULL)
 	{
@@ -61,9 +61,8 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	struct stat statbuf;
 	stat(argv[1], &statbuf);
-	int size=statbuf.st_size;
+	size=statbuf.st_size;
 	printf("mp4 file size=%d byte\n",size);
 
 	buffer = (unsigned char *)malloc(size);
@@ -73,18 +72,16 @@ int main(int argc, char **argv)
 	}
 	memset(buffer,0,size);
 
-
 	ret = fread (buffer , 1, size, pFile);
-	printf("read size=%d\n", ret);
+	printf("read mp4 ret=%d\n", ret);
 	if(ret != size){
 		printf("Fail to fread size=%d\n",size);
 		goto end;
 	}
 
-#if 0
-	#define READ_LEN		4096
-	//print data
-	for(i=0;i<READ_LEN;i++){
+#if DEBUG_ON
+	/*print data*/
+	for(i=0; i<DEBUG_LEN; i++){
 		printf("%02X ",buffer[i]);
 	}
 	printf("\n");
@@ -97,30 +94,73 @@ int main(int argc, char **argv)
 	}
 	p_buffer = buffer;
 
+	/*black camera*/
 	for(i=0; i<size-3; i++){
 		if((0x00 == buffer[i] && 0x00 == buffer[i+1]) &&
 			((0x61 == buffer[i+4] && 0xE0 == buffer[i+5]) ||
 			 (0x67 == buffer[i+4] && 0x4D == buffer[i+5] && 0x00 == buffer[i+6]) ||
 			 (0x68 == buffer[i+4] && 0xEE == buffer[i+5] && 0x3C == buffer[i+6]) ||
 			 (0x06 == buffer[i+4] && 0xE5 == buffer[i+5] && 0x01 == buffer[i+6]) ||
-			 (0x65 == buffer[i+4] && 0xB8 == buffer[i+5])))
+			 (0x65 == buffer[i+4] && 0xB8 == buffer[i+5]) ||
+			 (0x66 == buffer[i+4] && 0x74 == buffer[i+5])
+			 ))
 		{
+			if(0x66 == buffer[i+4] && 0x74 == buffer[i+5]){
+				printf("black over index=%x, flag: 00 00 00 18 66 74\n",i);
+				break;
+			}
+
 			date_len = ((buffer[i+2]<<8) | buffer[i+3]) + 4;
 			buffer[i+2] = 0x00;
 			buffer[i+3] = 0x01;
 
-			ret = fwrite(p_buffer+i, 1, date_len, pFile_out);
-			//printf("ret=%02X\n",ret);
-			if(ret != date_len)
+			if(date_len > 0)
 			{
-				printf("Fail to fwrite size=%d\n",date_len);
-				break;
+				ret = fwrite(p_buffer+i, 1, date_len, pFile_out);
+				//printf("black write ret=%X\n",ret);
+				if(ret != date_len)
+				{
+					printf("Fail to fwrite size=%d\n",date_len);
+					break;
+				}
 			}
 		}
-		else if(0x00 == buffer[i+2] && 0x18 == buffer[i+3] && 0x66 == buffer[i+4])
-		{
-			printf("over index=%x, flag: 00 00 00 18 66\n",i);
-			break;
+	}
+
+	/*yellow camera*/
+	stat(argv[2], &statbuf);
+	size_h264 = statbuf.st_size;
+	printf("h264 file size=%d byte\n",size_h264);
+	if(0 == size_h264){
+		for(i=0; i<size-3; i++){
+			if((0x00 == buffer[i] && 0x00 == buffer[i+1]) &&
+				((0x41 == buffer[i+4] && (0xE0 == buffer[i+5] || 0xE1 == buffer[i+5])) ||
+				 (0x47 == buffer[i+4] && 0x4D == buffer[i+5]) ||
+				 (0x48 == buffer[i+4] && 0xEE == buffer[i+5]) ||
+				 (0x45 == buffer[i+4] && 0xB8 == buffer[i+5]) ||
+				 (0x66 == buffer[i+4] && 0x74 == buffer[i+5])
+				))
+			{
+				if(0x66 == buffer[i+4] && 0x74 == buffer[i+5]){
+					printf("yellow over index=%x, flag: 00 00 00 18 66 74\n",i);
+					break;
+				}
+
+				date_len = ((buffer[i+2]<<8) | buffer[i+3]) + 4;
+				buffer[i+2] = 0x00;
+				buffer[i+3] = 0x01;
+
+				if(date_len > 0)
+				{
+					ret = fwrite(p_buffer+i, 1, date_len, pFile_out);
+					//printf("yellow write ret=%X\n",ret);
+					if(ret != date_len)
+					{
+						printf("Fail to fwrite size=%d\n",date_len);
+						break;
+					}
+				}
+			}
 		}
 	}
 
