@@ -126,11 +126,11 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-
-	/*yellow camera*/
 	stat(argv[2], &statbuf);
 	size_h264 = statbuf.st_size;
-	printf("h264 file size=%d byte\n",size_h264);
+	printf("black  h264 file size=%d byte\n",size_h264);
+
+	/*yellow camera*/
 	if(0 == size_h264){
 		for(i=0; i<size-3; i++){
 			if((0x00 == buffer[i] && 0x00 == buffer[i+1]) &&
@@ -162,6 +162,9 @@ int main(int argc, char **argv)
 				}
 			}
 		}
+		stat(argv[2], &statbuf);
+		size_h264 = statbuf.st_size;
+		printf("yellow h264 file size=%d byte\n",size_h264);
 	}
 
 	fclose(pFile_out);
