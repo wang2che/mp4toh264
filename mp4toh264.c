@@ -1,7 +1,7 @@
 /****************************************************
 camera -> openRTSP -> RTP file -> -RTP head -> +MP4 head -> .MP4 file
 
-黑色塑料摄像头h264头数据：
+ZM-CAM-HL720P黑色塑料摄像头h264头数据：
 
  -- LEN -- NAL-固定值
 |		  |
@@ -23,9 +23,21 @@ camera -> openRTSP -> RTP file -> -RTP head -> +MP4 head -> .MP4 file
 0x06: SEI
 0x09: AU Delimiter
 
-黄色金属摄像头h264头数据：
+GD-D3068L黄色金属摄像头h264头数据：
 00 00 xx xx 41 E1/E0
-....
+
+HKVISION DS-2K546612FD 【未匹配】
+00 00 00 XX 67 4D 40
+00 00 00 XX 68 EE 3C
+00 00 XX XX 65 88 80
+00 00 XX XX 61 9A		大量数据
+
+车载网络高清音频红外半球摄像头	【未匹配】
+00 00 00 XX 67 64
+00 00 00 XX 68 EE 3C
+00 00 XX XX 65 B8
+00 00 XX XX 61 E0	    大量数据
+
 ****************************************************/
 
 #include <stdio.h>
